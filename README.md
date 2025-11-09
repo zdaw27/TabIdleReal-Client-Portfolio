@@ -253,3 +253,186 @@ goldText.text = GoldBank.Instance.Gold.ToKoreanString(); // "1234.56경"
 ---
 
 **Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
+
+---
+
+## 7. 데이터 파이프라인 (자동 생성)
+
+### 7.1 설계 목표
+- 기획자가 Excel에서 게임 데이터를 편집
+- 프로그래머 개입 없이 자동으로 C# 코드 생성
+- 컴파일 타임에 타입 검증으로 런타임 에러 방지
+
+### 7.2 파이프라인 구조
+```
+[Excel (XLSX)]
+      ↓ (외부 Python 툴)
+[JSON 파일들]
+      ↓ (Unity Editor 스크립트)
+[C# Generated Code]
+      ↓ (컴파일)
+[GameDataRegistry 자동 로드]
+```
+
+### 7.3 자동 생성 코드
+
+#### Row 클래스 생성
+```csharp
+// Generated/MonstersRow.cs (자동 생성)
+[System.Serializable]
+public class MonstersRow {
+    public int ID;
+    public string Name;
+    public int HP;
+    public int AttackPower;
+    public int GoldReward;
+    public string SpriteKey;
+}
+```
+
+#### Registry 생성
+```csharp
+// Generated/GameDataRegistry.cs (자동 생성)
+public static class GameDataRegistry {
+    public static readonly List<MonstersRow> MonstersList = new();
+    public static readonly List<WeaponsRow> WeaponsList = new();
+    public static readonly List<SkillsRow> SkillsList = new();
+    // ... 28개 테이블
+    
+    static GameDataRegistry() {
+        Load_Monsters();
+        Load_Weapons();
+        Load_Skills();
+        // ... 모든 테이블 자동 로드
+    }
+    
+    private static void Load_Monsters() {
+        var json = Resources.Load<TextAsset>("CSVDataJson/Monsters");
+        var wrapper = JsonUtility.FromJson<MonstersWrapper>(json.text);
+        MonstersList.AddRange(wrapper.rows);
+    }
+}
+```
+
+### 7.4 사용 예시
+
+#### 기획 데이터 조회
+```csharp
+// ID로 몬스터 데이터 찾기
+var monsterData = GameDataRegistry.MonstersList
+    .First(r => r.ID == monsterId);
+
+// 스테이지별 보상 계산
+var stageData = GameDataRegistry.StagesList
+    .First(r => r.StageNumber == currentStage);
+var reward = stageData.BaseGoldReward * playerLevel;
+```
+
+#### Enum 자동 생성
+```csharp
+// Generated/StatType.cs (자동 생성)
+public enum StatType {
+    MaxHP = 1,
+    AttackPower = 2,
+    CritChance = 3,
+    CritDamage = 4,
+    TapDamage = 5,
+    AutoAttackDPS = 6,
+    // ... Excel의 Stats 시트에서 자동 생성
+}
+
+// Generated/CurrencyType.cs (자동 생성)
+public enum CurrencyType : int {
+    Gold = 1000001,
+    Diamonds = 1000002,
+    StatReroll = 1000003,
+    // ... Excel의 Items_Etc 시트에서 자동 생성
+}
+```
+
+### 7.5 자동 생성 툴 구조
+
+#### Python 변환기 (XLSX → JSON)
+```python
+# tools/xlsx_to_json.py
+import pandas as pd
+import json
+
+def convert_sheet_to_json(excel_path, sheet_name):
+    df = pd.read_excel(excel_path, sheet_name=sheet_name)
+    rows = df.to_dict('records')
+    
+    output = {
+        "rows": rows
+    }
+    
+    with open(f'Assets/Resources/CSVDataJson/{sheet_name}.json', 'w', encoding='utf-8') as f:
+        json.dump(output, f, ensure_ascii=False, indent=2)
+```
+
+#### Unity Editor 코드 생성기
+```csharp
+// Editor/DataTableCodeGenerator.cs
+public class DataTableCodeGenerator : EditorWindow {
+    [MenuItem("Tools/Generate Data Tables")]
+    static void Generate() {
+        var jsonFiles = Directory.GetFiles("Assets/Resources/CSVDataJson", "*.json");
+        
+        foreach (var jsonPath in jsonFiles) {
+            var tableName = Path.GetFileNameWithoutExtension(jsonPath);
+            GenerateRowClass(tableName);
+            GenerateRegistryEntry(tableName);
+        }
+        
+        AssetDatabase.Refresh();
+    }
+    
+    static void GenerateRowClass(string tableName) {
+        var json = File.ReadAllText($"Assets/Resources/CSVDataJson/{tableName}.json");
+        var schema = InferSchema(json);
+        
+        var code = new StringBuilder();
+        code.AppendLine($"public class {tableName}Row {{");
+        
+        foreach (var field in schema) {
+            code.AppendLine($"    public {field.Type} {field.Name};");
+        }
+        
+        code.AppendLine("}");
+        
+        File.WriteAllText($"Assets/Scripts/Generated/{tableName}Row.cs", code.ToString());
+    }
+}
+```
+
+### 7.6 장점
+
+1. **타입 안정성**: Excel 스키마 변경 시 컴파일 에러로 즉시 감지
+2. **생산성 향상**: 기획자가 직접 데이터 수정 가능 (프로그래머 불필요)
+3. **휴먼 에러 방지**: 수동 타이핑 제거, 자동 검증
+4. **일관성**: 모든 테이블이 동일한 구조/네이밍 규칙 준수
+5. **확장성**: 신규 테이블 추가 시 자동으로 코드 생성
+
+### 7.7 테이블 목록 (28개)
+```
+Monsters, Weapons, Skills, Artifacts, Stages, Items_Etc,
+Stats, WeaponGacha, GuideQuests, Achievements, BattlePass,
+DungeonTiers, CostumeStats, RebornLevels, ItemDrops,
+MonsterSpawns, StageRewards, SkillLevels, WeaponOptions,
+ArtifactEffects, QuestRewards, PassRewards, StatWeights,
+CombatPowerWeights, ...
+```
+
+---
+
+## 8. 기술 스택
+- **Unity 2022.3.62f1**
+- **C# 9.0** (Partial, Record)
+- **Firebase Firestore** (클라우드 저장)
+- **UniTask** (비동기 처리)
+- **Python 3.x** (데이터 파이프라인)
+- **12,000+ LOC**
+
+---
+
+**Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
