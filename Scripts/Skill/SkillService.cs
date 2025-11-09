@@ -1,12 +1,14 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace TabIdleReal
 {
     /// <summary>��ų �ν��Ͻ� ����/���׷��̵�/��ٿ� ���� + ���� �̺�Ʈ ����</summary>
     public class SkillService : ServiceBase
     {
-        public static SkillService Instance { get; private set; }
+        private static SkillService _instance;
+        public static SkillService Instance => _instance ??= new SkillService();
+
+        private SkillService() { }
 
         // ���� �̺�Ʈ: ���� ����/��ٿ� ���� �� ��ų ���°� �ٲ�� ����
         public event System.Action<SkillType> SkillChanged;
@@ -18,9 +20,6 @@ namespace TabIdleReal
 
         public override void Initialize()
         {
-            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
 
             // Def ����
             SkillDefs.EnsureBuilt();
@@ -33,7 +32,6 @@ namespace TabIdleReal
             foreach (var s in _skills.Values) s.Unlocked = true;
         }
 
-        void Update() => Tick(Time.deltaTime);
         public void BindContext(SkillContext ctx) => _ctx = ctx;
 
         private void Register(SkillType t)
@@ -50,7 +48,7 @@ namespace TabIdleReal
         public bool Upgrade(SkillType t)
         {
             if (!_skills.TryGetValue(t, out var s)) return false;
-            s.Level = Mathf.Clamp(s.Level + 1, 1, 999);
+            s.Level = UnityEngine.Mathf.Clamp(s.Level + 1, 1, 999);
             NotifyChanged(t); // �� ���׷��̵� ��� �˸�
             return true;
         }
@@ -85,11 +83,11 @@ namespace TabIdleReal
         public float GetAutoAttackMultiplier()
         {
             float mul = 1f;
-            foreach (var s in _skills.Values) mul *= Mathf.Max(0f, s.GetAutoAttackMultiplier());
+            foreach (var s in _skills.Values) mul *= UnityEngine.Mathf.Max(0f, s.GetAutoAttackMultiplier());
             return mul;
         }
 
-        public void SetPlayerLevel(int lv) { _playerLevel = Mathf.Max(1, lv); }
+        public void SetPlayerLevel(int lv) { _playerLevel = UnityEngine.Mathf.Max(1, lv); }
         public int GetPlayerLevel() => _playerLevel;
 
         public float GetCooldownLeft(SkillType t) => Get(t)?.GetCooldownLeft() ?? 0f;

@@ -17,7 +17,10 @@ namespace TabIdleReal
     /// </summary>
     public sealed partial class StageManager : ServiceBase
     {
-        public static StageManager Instance { get; private set; }
+        private static StageManager _instance;
+        public static StageManager Instance => _instance ??= new StageManager();
+
+        private StageManager() { }
 
         // ===== 기존 외부 이벤트 (보존) =====
         public event Action<Monster> OnMonsterKilled;
@@ -112,29 +115,20 @@ namespace TabIdleReal
                     }
                 };
 
-                Debug.Log($"[StageManager] MonsterProfileUI 표시 - {m.DisplayName}, 보스: {m.isBoss}");
+                UnityEngine.Debug.Log($"[StageManager] MonsterProfileUI 표시 - {m.DisplayName}, 보스: {m.isBoss}");
             }
         }
 
         public override void Initialize()
         {
-            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-            Instance = this;
         }
 
-        void Start()
-        {
-            // LoadAsync()에서 로드된 currentStage로 시작하도록 변경
-            // 여기서 시작하면 로드 전 currentStage=1로 시작되는 문제 발생
-            // var main = new MainStageController(Mathf.Max(1, currentStage));
-            // StartController(main, currentStage);
-        }
 
-        void Update()
+        public void Tick(float deltaTime)
         {
             if (_externallyControlled)
             {
-                _controller?.Update(Time.deltaTime); // ★ 타이머는 컨트롤러가 자체 처리
+                _controller?.Update(deltaTime); // ★ 타이머는 컨트롤러가 자체 처리
                 if (currentTarget == null || (currentTarget && !currentTarget.IsAlive))
                     currentTarget = null;
             }
@@ -154,8 +148,8 @@ namespace TabIdleReal
         /// <summary>로드된 currentStage로 메인 컨트롤러 재시작</summary>
         public void RestartMainController()
         {
-            Debug.Log($"[StageManager] 메인 컨트롤러 재시작: currentStage={currentStage}");
-            var main = new MainStageController(Mathf.Max(1, currentStage));
+            UnityEngine.Debug.Log($"[StageManager] 메인 컨트롤러 재시작: currentStage={currentStage}");
+            var main = new MainStageController(UnityEngine.Mathf.Max(1, currentStage));
             StartController(main, currentStage);
         }
 
@@ -170,7 +164,7 @@ namespace TabIdleReal
             }
 
             _controller = controller;
-            _returnStageId = (returnStageId > 0) ? returnStageId : Mathf.Max(1, currentStage);
+            _returnStageId = (returnStageId > 0) ? returnStageId : UnityEngine.Mathf.Max(1, currentStage);
             _externallyControlled = true;
 
             _controller.Entered += HandleEntered;
@@ -247,7 +241,7 @@ namespace TabIdleReal
 
             if (restartMain)
             {
-                var main = new MainStageController(Mathf.Max(1, currentStage));
+                var main = new MainStageController(UnityEngine.Mathf.Max(1, currentStage));
                 StartController(main, currentStage);
             }
         }
@@ -285,9 +279,9 @@ namespace TabIdleReal
                 GameEvents.Dungeon.TimerChanged.Invoke(bossTimer);
             }
 
-            GameEvents.Stage.Started.Invoke(Mathf.Max(1, currentStage), limitSec > 0f);
+            GameEvents.Stage.Started.Invoke(UnityEngine.Mathf.Max(1, currentStage), limitSec > 0f);
             GameEvents.Stage.Progress.Invoke(0, 1);
-            GameEvents.Dungeon.Started.Invoke(_curType, _curTier, monsterId, Mathf.Max(1f, hpMul), Mathf.Max(0f, limitSec), _runId);
+            GameEvents.Dungeon.Started.Invoke(_curType, _curTier, monsterId, UnityEngine.Mathf.Max(1f, hpMul), UnityEngine.Mathf.Max(0f, limitSec), _runId);
         }
 
         private void HandleEndRequested(DungeonEndReason reason, long reward)
@@ -303,7 +297,7 @@ namespace TabIdleReal
             if (reason == DungeonEndReason.Cleared)
                 MarkClearedInternal(_curType, _curTier);
 
-            GameEvents.Dungeon.Ended.Invoke(_curType, _curTier, reason, Math.Max(0, reward), Mathf.Max(0f, elapsed), _runId);
+            GameEvents.Dungeon.Ended.Invoke(_curType, _curTier, reason, Math.Max(0, reward), UnityEngine.Mathf.Max(0f, elapsed), _runId);
 
             var safeReward = Math.Max(0, reward);
             GameEvents.Dungeon.EndedHud.Invoke(reason, safeReward);
@@ -322,7 +316,7 @@ namespace TabIdleReal
             ClearAlive();
 
             // 메인 복귀
-            var main = new MainStageController(Mathf.Max(1, _returnStageId));
+            var main = new MainStageController(UnityEngine.Mathf.Max(1, _returnStageId));
             StartController(main, _returnStageId);
         }
 
@@ -351,7 +345,7 @@ namespace TabIdleReal
         // ===== HUD 갱신용 (컨트롤러가 틱마다 호출) =====
         public void NotifyBossTick(float leftSec)
         {
-            bossTimer = Mathf.Max(0f, leftSec);
+            bossTimer = UnityEngine.Mathf.Max(0f, leftSec);
             GameEvents.Stage.BossTimerTick.Invoke(bossTimer);
             GameEvents.Dungeon.TimerChanged.Invoke(bossTimer);
         }
@@ -373,13 +367,13 @@ namespace TabIdleReal
         {
             if (!IsInDungeon)
             {
-                Debug.LogWarning("[StageManager] 현재 던전이 아닙니다.");
+                UnityEngine.Debug.LogWarning("[StageManager] 현재 던전이 아닙니다.");
                 return;
             }
 
             if (_controller == null)
             {
-                Debug.LogWarning("[StageManager] 컨트롤러가 없습니다.");
+                UnityEngine.Debug.LogWarning("[StageManager] 컨트롤러가 없습니다.");
                 return;
             }
 
@@ -393,7 +387,7 @@ namespace TabIdleReal
                 if (rewardItemId > 0)
                 {
                     GoldBank.Instance?.TryAddById(rewardItemId, reward);
-                    Debug.Log($"[StageManager] 에디터 강제 클리어 보상: {reward} (ItemID: {rewardItemId})");
+                    UnityEngine.Debug.Log($"[StageManager] 에디터 강제 클리어 보상: {reward} (ItemID: {rewardItemId})");
                 }
             }
 
@@ -401,7 +395,7 @@ namespace TabIdleReal
             ClearAlive();
 
             // 던전 클리어 처리
-            Debug.Log($"[StageManager] 에디터 강제 클리어: {_curType} Tier {_curTier}");
+            UnityEngine.Debug.Log($"[StageManager] 에디터 강제 클리어: {_curType} Tier {_curTier}");
             EndDungeon(DungeonEndReason.Cleared, reward);
         }
 
@@ -413,7 +407,7 @@ namespace TabIdleReal
                     var goldRow = GameDataRegistry.GoldDungeonList?.Find(r => r != null && r.Tier == tier);
                     if (goldRow == null)
                     {
-                        Debug.LogError($"[StageManager] GoldDungeonList에서 Tier {tier} 데이터를 찾을 수 없습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] GoldDungeonList에서 Tier {tier} 데이터를 찾을 수 없습니다!");
                         return 0;
                     }
                     return goldRow.RewardAmount;
@@ -422,7 +416,7 @@ namespace TabIdleReal
                     var diaRow = GameDataRegistry.DiamondDungeonList?.Find(r => r != null && r.Tier == tier);
                     if (diaRow == null)
                     {
-                        Debug.LogError($"[StageManager] DiamondDungeonList에서 Tier {tier} 데이터를 찾을 수 없습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] DiamondDungeonList에서 Tier {tier} 데이터를 찾을 수 없습니다!");
                         return 0;
                     }
                     return diaRow.RewardAmount;
@@ -432,7 +426,7 @@ namespace TabIdleReal
                     var rerollRows = GameDataRegistry.StatRerollGemDungeonList;
                     if (rerollRows == null || rerollRows.Count == 0)
                     {
-                        Debug.LogError($"[StageManager] StatRerollGemDungeonList가 비어있습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] StatRerollGemDungeonList가 비어있습니다!");
                         return 0;
                     }
                     long total = 0;
@@ -441,7 +435,7 @@ namespace TabIdleReal
                     return total;
 
                 default:
-                    Debug.LogError($"[StageManager] 알 수 없는 던전 타입: {type}");
+                    UnityEngine.Debug.LogError($"[StageManager] 알 수 없는 던전 타입: {type}");
                     return 0;
             }
         }
@@ -454,7 +448,7 @@ namespace TabIdleReal
                     var goldRow = GameDataRegistry.GoldDungeonList?.Find(r => r != null);
                     if (goldRow == null)
                     {
-                        Debug.LogError($"[StageManager] GoldDungeonList에서 RewardItem을 찾을 수 없습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] GoldDungeonList에서 RewardItem을 찾을 수 없습니다!");
                         return 0;
                     }
                     return goldRow.RewardItem;
@@ -463,7 +457,7 @@ namespace TabIdleReal
                     var diaRow = GameDataRegistry.DiamondDungeonList?.Find(r => r != null);
                     if (diaRow == null)
                     {
-                        Debug.LogError($"[StageManager] DiamondDungeonList에서 RewardItem을 찾을 수 없습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] DiamondDungeonList에서 RewardItem을 찾을 수 없습니다!");
                         return 0;
                     }
                     return diaRow.RewardItem;
@@ -472,13 +466,13 @@ namespace TabIdleReal
                     var rerollRow = GameDataRegistry.StatRerollGemDungeonList?.Find(r => r != null);
                     if (rerollRow == null)
                     {
-                        Debug.LogError($"[StageManager] StatRerollGemDungeonList에서 RewardItem을 찾을 수 없습니다!");
+                        UnityEngine.Debug.LogError($"[StageManager] StatRerollGemDungeonList에서 RewardItem을 찾을 수 없습니다!");
                         return 0;
                     }
                     return rerollRow.RewardItem;
 
                 default:
-                    Debug.LogError($"[StageManager] 알 수 없는 던전 타입: {type}");
+                    UnityEngine.Debug.LogError($"[StageManager] 알 수 없는 던전 타입: {type}");
                     return 0;
             }
         }

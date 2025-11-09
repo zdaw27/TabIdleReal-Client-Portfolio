@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 
 namespace TabIdleReal
@@ -12,14 +11,16 @@ namespace TabIdleReal
     /// - 스탯 집계 및 전투력 계산의 중앙 허브
     /// - Current 는 읽기 전용으로 취급 (외부에서 변경하지 말 것)
     /// </summary>
-    [DefaultExecutionOrder(-50)]
+    
     public class StatSnapshotHub : ServiceBase
     {
+        private static StatSnapshotHub _instance;
+        public static StatSnapshotHub Instance => _instance ??= new StatSnapshotHub();
+        private StatSnapshotHub() { }
 
-        [Tooltip("IModifierSource 를 구현한 컴포넌트를 드래그하세요 (장비/아티팩트/버프/스테이지 보정 등).")]
-        [SerializeField] private List<MonoBehaviour> sources = new();
+        private List<IModifierSource> sources = new();
 
-        [Header("References")]
+        
 
         /// <summary>현재 스냅샷 (읽기 전용)</summary>
         public StatAccumulator Current { get; private set; }
@@ -36,14 +37,14 @@ namespace TabIdleReal
         private long _cachedCombatPower = 0;
         public override void Initialize()
         {
-            Debug.Log("[StatSnapshotHub] OnInitialize 시작");
+            UnityEngine.Debug.Log("[StatSnapshotHub] OnInitialize 시작");
 
 
             RebuildSourceCache();
             // 최초 빌드
             Rebuild(default);
 
-            Debug.Log("[StatSnapshotHub] OnInitialize 완료");
+            UnityEngine.Debug.Log("[StatSnapshotHub] OnInitialize 완료");
         }
 
         /// <summary>
@@ -52,11 +53,11 @@ namespace TabIdleReal
         public void RebuildSourceCache()
         {
             _cache.Clear();
-            foreach (var mb in sources)
+            foreach (var source in sources)
             {
-                if (!mb) continue;
-                if (mb is IModifierSource s) _cache.Add(s);
-                else Debug.LogWarning($"[StatSnapshotHub] '{mb.name}' 는 IModifierSource 가 아님", mb);
+                if (source == null) continue;
+                if (source != null) _cache.Add(source);
+                else UnityEngine.Debug.LogWarning($"[StatSnapshotHub] '{source.ToString()}' 는 IModifierSource 가 아님", mb);
             }
         }
 
@@ -66,7 +67,7 @@ namespace TabIdleReal
         /// <summary>현재 스냅샷 반환 (필요시 자동 갱신)</summary>
         public StatAccumulator GetSnapshot()
         {
-            if (_dirty) Rebuild(new CombatQuery { Attacker = gameObject, Target = null, DeltaTime = Time.deltaTime });
+            if (_dirty) Rebuild(new CombatQuery { Attacker = null, Target = null, DeltaTime = 0f });
             return Current;
         }
 
@@ -87,7 +88,7 @@ namespace TabIdleReal
                 }
                 catch (Exception e)
                 {
-                    Debug.LogException(e, (src as Component));
+                    UnityEngine.Debug.LogException(e, (src as object));
                     continue;
                 }
 
@@ -127,7 +128,7 @@ namespace TabIdleReal
             var weights = GameDataRegistry.CombatPowerWeightsList;
             if (weights == null || weights.Count == 0)
             {
-                Debug.LogWarning("[StatSnapshotHub] CombatPowerWeights 데이터가 없습니다!");
+                UnityEngine.Debug.LogWarning("[StatSnapshotHub] CombatPowerWeights 데이터가 없습니다!");
                 _cachedCombatPower = 0;
                 return;
             }
@@ -148,7 +149,7 @@ namespace TabIdleReal
                 totalPower += contribution;
             }
 
-            long newPower = (long)Mathf.Max(0f, totalPower);
+            long newPower = (long)UnityEngine.Mathf.Max(0f, totalPower);
 
             if (newPower != _cachedCombatPower)
             {
@@ -158,19 +159,19 @@ namespace TabIdleReal
         }
 
         // -------- 선택: 런타임에서 소스 추가/제거를 원할 때 --------
-        public void AddSource(MonoBehaviour mb)
+        public void AddSource(IModifierSource source)
         {
-            if (!mb) return;
-            sources.Add(mb);
-            if (mb is IModifierSource s) _cache.Add(s);
-            else Debug.LogWarning($"[StatSnapshotHub] '{mb.name}' 는 IModifierSource 가 아님", mb);
+            if (source == null) return;
+            sources.Add(source);
+            if (source != null) _cache.Add(source);
+            else UnityEngine.Debug.LogWarning($"[StatSnapshotHub] '{source.ToString()}' 는 IModifierSource 가 아님", mb);
         }
 
-        public void RemoveSource(MonoBehaviour mb)
+        public void RemoveSource(IModifierSource source)
         {
-            if (!mb) return;
-            sources.Remove(mb);
-            if (mb is IModifierSource s) _cache.Remove(s);
+            if (source == null) return;
+            sources.Remove(source);
+            if (source != null) _cache.Remove(source);
         }
     }
 }

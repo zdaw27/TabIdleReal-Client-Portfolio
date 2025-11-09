@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace TabIdleReal
 {
@@ -15,7 +14,15 @@ namespace TabIdleReal
     /// </summary>
     public sealed partial class GoldBank : ServiceBase
     {
-        public static GoldBank Instance { get; private set; }
+        private static GoldBank _instance;
+        public static GoldBank Instance => _instance ??= new GoldBank();
+
+        private GoldBank() { }
+
+        public override void Initialize()
+        {
+            InitializeCurrencies();
+        }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CurrencyType enum (값 = Items_EtcRow.ID)
@@ -54,16 +61,6 @@ namespace TabIdleReal
         public event Action<BigNum, BigNum> OnGoldChanged;                   // (newValue, delta)
         public event Action<BigNum, BigNum> OnDiamondsChanged;               // (newValue, delta)
 
-        public override void Initialize()
-        {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            Instance = this;
-        }
-
         // OnInitialize() 제거 - ISessionUnit.InitializeAsync()로 이동
 
         private void InitializeCurrencies()
@@ -90,7 +87,7 @@ namespace TabIdleReal
                 }
                 else
                 {
-                    Debug.LogError($"[GoldBank] CurrencyType.{ct} (ID={id})가 Items_Etc 테이블에 없습니다.");
+                    UnityEngine.Debug.LogError($"[GoldBank] CurrencyType.{ct} (ID={id})가 Items_Etc 테이블에 없습니다.");
                 }
             }
 
@@ -193,7 +190,7 @@ namespace TabIdleReal
                 AddAmount(ct, amount);
                 return true;
             }
-            Debug.LogWarning($"[GoldBank] TryAddById({itemId}) - CurrencyType에 없는 ID입니다.");
+            UnityEngine.Debug.LogWarning($"[GoldBank] TryAddById({itemId}) - CurrencyType에 없는 ID입니다.");
             return false;
         }
 
@@ -205,7 +202,7 @@ namespace TabIdleReal
             {
                 return TrySpend(ct, amount);
             }
-            Debug.LogWarning($"[GoldBank] TrySpendById({itemId}) - CurrencyType에 없는 ID입니다.");
+            UnityEngine.Debug.LogWarning($"[GoldBank] TrySpendById({itemId}) - CurrencyType에 없는 ID입니다.");
             return false;
         }
 
@@ -360,7 +357,7 @@ namespace TabIdleReal
             {
                 AddAmount(ct, 10000);
             }
-            Debug.Log("[GoldBank] 모든 재화에 +10000 추가 완료");
+            UnityEngine.Debug.Log("[GoldBank] 모든 재화에 +10000 추가 완료");
         }
 #endif
     }
