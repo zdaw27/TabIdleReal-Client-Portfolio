@@ -436,3 +436,148 @@ CombatPowerWeights, ...
 ---
 
 **Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
+
+---
+
+## 9. 강타입 이벤트 시스템
+
+### 9.1 기존 방식의 문제점
+
+**Unity 기본 방식:**
+```csharp
+// 원시 타입 직접 전달
+public event Action<int, bool, float, long, Guid> OnSomethingHappened;
+OnSomethingHappened?.Invoke(10, true, 3.5f, 123456, sessionId);
+// 문제: 파라미터 순서/의미 불명확, 확장 시 기존 코드 수정 필요
+```
+
+### 9.2 이벤트 파라미터 객체화
+
+**EventArgs 패턴 적용:**
+```csharp
+// 1. 이벤트 파라미터를 클래스로 정의
+public class DungeonEndedEventArgs : GameEventArgs {
+    public DungeonType Type { get; set; }
+    public int Tier { get; set; }
+    public StageManager.DungeonEndReason Reason { get; set; }
+    public BigNum GoldEarned { get; set; }
+    public TimeSpan TimeElapsed { get; set; }
+    public Guid SessionId { get; set; }
+    
+    // 계산된 프로퍼티
+    public bool IsSuccess => Reason == DungeonEndReason.Cleared;
+    
+    // 기본 클래스에서 제공
+    public DateTime Timestamp { get; }
+}
+
+// 2. 강타입 이벤트 정의
+public static class GameEvents {
+    public static class Dungeon {
+        public static readonly GameEvent<DungeonEndedEventArgs> Ended 
+            = new("Dungeon.Ended");
+    }
+}
+
+// 3. 사용 - 명확하고 확장 가능
+GameEvents.Dungeon.Ended.Invoke(new DungeonEndedEventArgs {
+    Type = DungeonType.Gold,
+    Tier = 5,
+    Reason = reason,
+    GoldEarned = goldReward,
+    TimeElapsed = TimeSpan.FromSeconds(45.3f),
+    SessionId = sessionId
+});
+
+// 4. 구독 - IDE 자동완성 지원
+void OnDungeonEnded(DungeonEndedEventArgs args) {
+    if (args.IsSuccess) {
+        ShowReward(args.GoldEarned);
+        SaveRecord(args.Type, args.Tier, args.TimeElapsed);
+    }
+}
+```
+
+### 9.3 장점
+
+**1. 타입 안전성**
+```csharp
+// 컴파일 타임 검증
+new MonsterKilledEventArgs {
+    Monster = monster,
+    Damage = "abc"  // 컴파일 에러!
+};
+```
+
+**2. 하위 호환성**
+```csharp
+// 기존 코드
+public class MonsterKilledEventArgs {
+    public Monster Monster { get; set; }
+}
+
+// 필드 추가 - 기존 구독자 영향 없음!
+public class MonsterKilledEventArgs {
+    public Monster Monster { get; set; }
+    public int Damage { get; set; }        // 추가
+    public bool IsCritical { get; set; }   // 추가
+}
+```
+
+**3. 디버깅 & 리플레이**
+```csharp
+// 모든 이벤트에 타임스탬프 자동 기록
+public abstract class GameEventArgs {
+    public DateTime Timestamp { get; } = DateTime.UtcNow;
+}
+
+// 이벤트 히스토리 추적
+List<GameEventArgs> eventHistory = new();
+GameEvents.Stage.MonsterKilled.Subscribe(args => eventHistory.Add(args));
+
+// 타임라인 분석
+var last5Minutes = eventHistory
+    .Where(e => e.Timestamp > DateTime.UtcNow.AddMinutes(-5));
+```
+
+**4. 계산된 프로퍼티**
+```csharp
+public class StageProgressEventArgs : GameEventArgs {
+    public int Current { get; set; }
+    public int Max { get; set; }
+    
+    // 구독자가 직접 계산할 필요 없음
+    public float Percentage => Max > 0 ? (float)Current / Max : 0f;
+}
+
+public class CurrencyChangedEventArgs : GameEventArgs {
+    public BigNum NewValue { get; set; }
+    public BigNum Delta { get; set; }
+    
+    // 이전 값 자동 제공
+    public BigNum PreviousValue => NewValue - Delta;
+}
+```
+
+### 9.4 구현된 이벤트 타입 (20+)
+- `MonsterKilledEventArgs` - 몬스터 처치 정보
+- `DungeonEndedEventArgs` - 던전 종료 결과
+- `CurrencyChangedEventArgs` - 재화 변동 추적
+- `WeaponObtainedEventArgs` - 무기 획득 출처
+- `QuestCompletedEventArgs` - 퀘스트 완료 시간
+- `BattlePassExpGainedEventArgs` - 경험치 획득 출처
+- ... (전체 목록은 `EventArgs.cs` 참조)
+
+---
+
+## 10. 기술 스택
+- **Unity 2022.3.62f1**
+- **C# 9.0** (Partial, Record)
+- **Firebase Firestore** (클라우드 저장)
+- **UniTask** (비동기 처리)
+- **Python 3.x** (데이터 파이프라인)
+- **12,000+ LOC**
+
+---
+
+**Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
