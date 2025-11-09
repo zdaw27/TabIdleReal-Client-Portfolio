@@ -156,3 +156,100 @@ private GoldBank() { }
 ---
 
 **Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
+
+---
+
+## 5. BigNum 시스템
+
+### 5.1 설계 배경
+Idle 게임의 특성상 골드/데미지가 기하급수적으로 증가 (1만 → 1억 → 1조 → 1경 → ...). C#의 기본 타입(long, double)으로는 표현 한계와 정밀도 문제 발생.
+
+### 5.2 구조
+```csharp
+public struct BigNum {
+    public double m;  // 가수 (1 ≤ m < 10000)
+    public int e4;    // 만 단위 지수 (0=일, 1=만, 2=억, 3=조, 4=경, ...)
+    
+    // 예시: 1234경 5678조 = m: 1234.5678, e4: 4
+}
+```
+
+**특징:**
+- 만 단위 지수로 한국어 표기와 자연스럽게 매핑
+- double 가수로 소수점 이하 정밀도 유지
+- 10^(4*e4) 범위까지 표현 가능 (사실상 무한대)
+
+### 5.3 연산
+```csharp
+// 사칙연산
+public static BigNum operator +(BigNum a, BigNum b);
+public static BigNum operator -(BigNum a, BigNum b);
+public static BigNum operator *(BigNum a, BigNum b);
+public static BigNum operator /(BigNum a, BigNum b);
+
+// 비교 연산
+public static bool operator >(BigNum a, BigNum b);
+public static bool operator <(BigNum a, BigNum b);
+
+// 변환
+public static BigNum FromLong(long value);
+public static BigNum FromDouble(double value);
+public long ToLongSafe(); // 오버플로우 시 long.MaxValue 반환
+public string ToKoreanString(); // "123.45경"
+```
+
+### 5.4 한국어 표기
+```csharp
+private static readonly string[] KoreanUnits = {
+    "", "만", "억", "조", "경", "해", "자", "양", "구", "간", "정"
+};
+
+public string ToKoreanString() {
+    if (e4 >= KoreanUnits.Length) return "무량대수";
+    return $"{m:F2}{KoreanUnits[e4]}";
+}
+
+// 출력 예시:
+// 1234만 5678 → "1234.57만"
+// 9876경 5432조 → "9876.54경"
+```
+
+### 5.5 실전 활용
+```csharp
+// GoldBank - 재화 관리
+public void AddAmount(CurrencyType ct, BigNum amount) {
+    var cur = GetAmount(ct);
+    SetAmountInternal(ct, cur + amount, amount);
+}
+
+// PlayerCombat - 데미지 계산
+public BigNum CalculateTapDamage() {
+    var baseDmg = _acc.GetAdd(StatDB.Get(StatType.TapDamage), 0f);
+    var result = BigNum.FromDouble(baseDmg);
+    if (CheckCrit()) result = result * critMultiplier;
+    return result;
+}
+
+// UI 표시
+goldText.text = GoldBank.Instance.Gold.ToKoreanString(); // "1234.56경"
+```
+
+### 5.6 장점
+1. **무한 확장성**: Idle 게임의 극후반 콘텐츠까지 수용
+2. **정밀도 유지**: double 가수로 소수점 계산 정확
+3. **직관적 표기**: 한국어 단위와 1:1 매핑
+4. **타입 안전성**: 연산자 오버로딩으로 일반 숫자처럼 사용
+5. **직렬화 용이**: 구조체로 JSON/Firestore 자동 직렬화
+
+---
+
+## 6. 기술 스택
+- **Unity 2022.3.62f1**
+- **C# 9.0** (Partial, Record)
+- **Firebase Firestore** (클라우드 저장)
+- **UniTask** (비동기 처리)
+- **12,000+ LOC**
+
+---
+
+**Note**: 이 리포지토리는 전체 프로젝트에서 핵심 시스템 스크립트만 발췌한 포트폴리오입니다.
